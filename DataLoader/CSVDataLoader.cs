@@ -9,132 +9,157 @@ namespace DataLoader
 
     public class CSVDataLoader : IDataLoader
     {
-        private const string BooksFilePath = "BX-CSV-Dump/BX-Books.csv";
-        private const string UsersFilePath = "BX-CSV-Dump/BX-Users.csv";
-        private const string BookRatingsFilePath = "BX-CSV-Dump/BX-Books-Ratings.csv";
-        BookDetails bookDetails=new BookDetails();
+
+        private const string BooksFilePath = "..\\..\\..\\Data\\BX-Books.csv";
+        private const string UsersFilePath = "..\\..\\..\\Data\\BX-Users.csv";
+        private const string BookRatingsFilePath = "..\\..\\..\\Data\\BX-Book-Ratings.csv";
         public BookDetails Load()
         {
-            Parallel.Invoke(LoadBooks, LoadRatings, LoadUsers);
+            BookDetails bookDetails = new BookDetails();
 
+            //////load data from BX-Books.csv(in BX-CSV-Dump) in list of Books of bookDetails
+            //bookDetails.Books = LoadBooks();
 
+            //////load data from BX-Users.csv(in BX-CSV-Dump) in list of Users of bookDetails
+            //bookDetails.Users = LoadUsers();
+
+            //////load data from BX-Books-Ratings.csv(in BX-CSV-Dump) in list of BookUserRatings of bookDetails
+            //bookDetails.UserRatings = LoadBookUserRatings();
+
+            //usig multithreading -parallel
+            Parallel.Invoke(
+                () => bookDetails.Books = LoadBooks(),
+                () => bookDetails.Users = LoadUsers(),
+                () => bookDetails.BookUserRatings = LoadBookUserRatings()
+            );
             return bookDetails;
         }
 
-        public void LoadBooks()
+        private List<Book> LoadBooks()
         {
-
-            StreamReader booksReader = new StreamReader(BooksFilePath);
-            booksReader.ReadLine();
-            using (booksReader)
+            var books = new List<Book>();
+            using (var reader = new StreamReader(BooksFilePath))
             {
-                while (!booksReader.EndOfStream)
+                string headerLine = reader.ReadLine(); // Skip header
+                string line;
+                while ((line = reader.ReadLine()) != null)
                 {
-                    string delimiter = "\";\"";
-                    string[] str = booksReader.ReadLine().Split(new[] { delimiter }, StringSplitOptions.None);
+                    var fields = line.Split(';');
+
+                    if (fields.Length != 8)
+                    { continue; }
+
+                    // Strip quotes and extraspaces from fields if present
+                    fields = fields.Select(field => field.Trim()).ToArray();
+                    fields = fields.Select(field => field.Trim('"')).ToArray();
 
 
-                    int yop = int.Parse(str[3]);
-                    str[0] = str[0].Substring(1);
-
-
-
-                    bookDetails.Books.Add(new Book
+                    var book = new Book
                     {
-                        ISBN = str[0],
-                        Title = str[1],
-                        Author = str[2],
-                        YearOfPublication = yop,
-                        Publisher = str[4],
-                        ImageUrlSmall = str[5],
-                        ImageUrlMedium = str[6],
-                        ImageUrlLarge = str[7]
-                    });
-
+                        ISBN = fields[0],
+                        Title = fields[1],
+                        Author = fields[2],
+                        YearOfPublication = int.Parse(fields[3]),
+                        Publisher = fields[4],
+                        ImageUrlSmall = fields[5],
+                        ImageUrlMedium = fields[6],
+                        ImageUrlLarge = fields[7],
+                    };
+                    books.Add(book);
                 }
             }
+            return books;
         }
 
-        public void LoadUsers()
+        private List<User> LoadUsers()
         {
-
-            StreamReader userReader = new StreamReader(UsersFilePath);
-
-            using (userReader)
+            var users = new List<User>();
+            using (var reader = new StreamReader(UsersFilePath))
             {
-
-                userReader.ReadLine();
-
-                while (!userReader.EndOfStream)
+                string headerLine = reader.ReadLine(); // Skip header
+                string line;
+                while ((line = reader.ReadLine()) != null)
                 {
-                    string line3 = userReader.ReadLine();
+                    var fields = line.Split(';');
+                    if (fields.Length != 3)
+                    { continue; }
 
+                    // Strip quotes and extraspaces from fields if present
+                    fields = fields.Select(field => field.Trim()).ToArray();
+                    fields = fields.Select(field => field.Trim('"')).ToArray();
 
-                    string delimiter = "\";";
+                    var user = new User
+                    {
+                        UserId = int.Parse(fields[0])
+                    };
 
-                    string[] parts3 = line3.Split(new[] { delimiter }, StringSplitOptions.None);
-                    parts3[0] = parts3[0].Substring(1);
-                    parts3[1] = parts3[1].Substring(1);
-
-
-                    User user = new User();
-
-                    user.UserId = int.Parse(parts3[0]);
-
-                    string loc = parts3[1];
-
-                    List<string> locparts = loc.Split(',').Select(s => s.Trim(' ')).ToList();
-
-                    user.City = locparts.Count >= 1 ? locparts[0] : "";
-                    user.State = locparts.Count >= 2 ? locparts[1] : "";
-                    user.Country = locparts.Count >= 3 ? locparts[2] : "";
-
-
-                    if (parts3[2] != "NULL")
-                        user.Age = int.Parse(parts3[2].Trim('"'));
+                    // Split Location into City, State, and Country
+                    var locationParts = fields[1].Split(new[] { ',', ' ' }, 3, StringSplitOptions.RemoveEmptyEntries);
+                    if (locationParts.Length == 3)
+                    {
+                        user.City = locationParts[0];
+                        user.State = locationParts[1];
+                        user.Country = locationParts[2];
+                    }
+                    else if (locationParts.Length == 2)
+                    {
+                        user.City = locationParts[0];
+                        user.State = locationParts[1];
+                        user.Country = string.Empty; // Default to empty if country is missing
+                    }
+                    else if (locationParts.Length == 1)
+                    {
+                        user.City = locationParts[0];
+                        user.State = string.Empty;
+                        user.Country = string.Empty;
+                    }
+                    // Handle Age if not present
+                    if (fields.Length < 3)
+                    {
+                        user.Age = 40;//default to 40
+                    }
                     else
-                        user.Age = -1;
-
-                    bookDetails.Users.Add(user);
-
-
-
-
-
-
-
-
+                    {
+                        if (int.TryParse(fields[2], out int age))
+                        {
+                            user.Age = age;
+                        }
+                        else
+                        {
+                            user.Age = 40; // Default to 40 if parsing fails
+                        }
+                    }
+                    users.Add(user);
                 }
             }
+            return users;
         }
 
-        public void LoadRatings()
+        private List<BookUserRating> LoadBookUserRatings()
         {
-            StreamReader ratingReader = new StreamReader(BookRatingsFilePath);
-            ratingReader.ReadLine();
-
-            using (ratingReader)
+            var ratings = new List<BookUserRating>();
+            using (var reader = new StreamReader(BookRatingsFilePath))
             {
-                while (!ratingReader.EndOfStream)
+                string headerLine = reader.ReadLine(); // Skip header
+                string line;
+                while ((line = reader.ReadLine()) != null)
                 {
-                    string[] str = ratingReader.ReadLine().Split(';');
-                    int uid = int.Parse(str[0].Trim('"'));
-                    str[1] = str[1].Trim('"');
+                    var fields = line.Split(';');
 
-                    int rating = int.Parse(str[2].Trim('"'));
+                    // Strip quotes and extraspaces from fields if present
+                    fields = fields.Select(field => field.Trim()).ToArray();
+                    fields = fields.Select(field => field.Trim('"')).ToArray();
 
-                    bookDetails.BookUserRatings.Add(new BookUserRating { UserID = uid, ISBN = str[1], Rating = rating });
-
-
+                    var rating = new BookUserRating
+                    {
+                        UserID = int.Parse(fields[0]),
+                        ISBN = fields[1],
+                        Rating = int.Parse(fields[2])
+                    };
+                    ratings.Add(rating);
                 }
-
             }
+            return ratings;
         }
-
-
-
-
-
-
     }
 }
