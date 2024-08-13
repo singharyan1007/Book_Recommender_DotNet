@@ -12,127 +12,127 @@ namespace DataLoader
         private const string BooksFilePath = "BX-CSV-Dump/BX-Books.csv";
         private const string UsersFilePath = "BX-CSV-Dump/BX-Users.csv";
         private const string BookRatingsFilePath = "BX-CSV-Dump/BX-Books-Ratings.csv";
+        BookDetails bookDetails=new BookDetails();
         public BookDetails Load()
         {
-            BookDetails bookDetails = new BookDetails();
-
-            //load data from BX-Books.csv(in BX-CSV-Dump) in list of Books of bookDetails
-            bookDetails.Books = LoadBooks();
-
-            //load data from BX-Users.csv(in BX-CSV-Dump) in list of Users of bookDetails
-            bookDetails.Users = LoadUsers();
-
-            //load data from BX-Books-Ratings.csv(in BX-CSV-Dump) in list of BookUserRatings of bookDetails
-            bookDetails.BookUserRatings = LoadBookUserRatings();
+            Parallel.Invoke(LoadBooks, LoadRatings, LoadUsers);
 
 
             return bookDetails;
         }
 
-        private List<Book> LoadBooks()
+        public void LoadBooks()
         {
-            var books = new List<Book>();
-            using (var reader = new StreamReader(BooksFilePath))
+
+            StreamReader booksReader = new StreamReader(BooksFilePath);
+            booksReader.ReadLine();
+            using (booksReader)
             {
-                string headerLine = reader.ReadLine(); // Skip header
-                string line;
-                while ((line = reader.ReadLine()) != null)
+                while (!booksReader.EndOfStream)
                 {
-                    var fields = line.Split(';');
-                    var book = new Book
+                    string delimiter = "\";\"";
+                    string[] str = booksReader.ReadLine().Split(new[] { delimiter }, StringSplitOptions.None);
+
+
+                    int yop = int.Parse(str[3]);
+                    str[0] = str[0].Substring(1);
+
+
+
+                    bookDetails.Books.Add(new Book
                     {
+                        ISBN = str[0],
+                        Title = str[1],
+                        Author = str[2],
+                        YearOfPublication = yop,
+                        Publisher = str[4],
+                        ImageUrlSmall = str[5],
+                        ImageUrlMedium = str[6],
+                        ImageUrlLarge = str[7]
+                    });
 
-                        Title = fields[1],
-                        Author = fields[2],
-                        YearOfPublication = int.Parse
-                        (fields[3]),
-                        Publisher = fields[4]
-
-                    };
-                    books.Add(book);
                 }
             }
-            return books;
         }
 
-        private List<User> LoadUsers()
+        public void LoadUsers()
         {
-            var users = new List<User>();
-            using (var reader = new StreamReader(UsersFilePath))
-            {
-                string headerLine = reader.ReadLine(); // Skip header
-                string line;
-                while ((line = reader.ReadLine()) != null)
-                {
-                    var fields = line.Split(';');
-                    var user = new User
-                    {
-                        UserId = int.Parse(fields[0])
-                    };
 
-                    // Split Location into City, State, and Country
-                    var locationParts = fields[1].Split(new[] { ' ' }, 3, StringSplitOptions.RemoveEmptyEntries);
-                    if (locationParts.Length == 3)
-                    {
-                        user.City = locationParts[0];
-                        user.State = locationParts[1];
-                        user.Country = locationParts[2];
-                    }
-                    else if (locationParts.Length == 2)
-                    {
-                        user.City = locationParts[0];
-                        user.State = locationParts[1];
-                        user.Country = string.Empty; // Default to empty if country is missing
-                    }
-                    else if (locationParts.Length == 1)
-                    {
-                        user.City = locationParts[0];
-                        user.State = string.Empty;
-                        user.Country = string.Empty;
-                    }
-                    // Handle Age
-                    if (fields[2] == "NULL")
-                    {
-                        user.Age = 20;
-                    }
+            StreamReader userReader = new StreamReader(UsersFilePath);
+
+            using (userReader)
+            {
+
+                userReader.ReadLine();
+
+                while (!userReader.EndOfStream)
+                {
+                    string line3 = userReader.ReadLine();
+
+
+                    string delimiter = "\";";
+
+                    string[] parts3 = line3.Split(new[] { delimiter }, StringSplitOptions.None);
+                    parts3[0] = parts3[0].Substring(1);
+                    parts3[1] = parts3[1].Substring(1);
+
+
+                    User user = new User();
+
+                    user.UserId = int.Parse(parts3[0]);
+
+                    string loc = parts3[1];
+
+                    List<string> locparts = loc.Split(',').Select(s => s.Trim(' ')).ToList();
+
+                    user.City = locparts.Count >= 1 ? locparts[0] : "";
+                    user.State = locparts.Count >= 2 ? locparts[1] : "";
+                    user.Country = locparts.Count >= 3 ? locparts[2] : "";
+
+
+                    if (parts3[2] != "NULL")
+                        user.Age = int.Parse(parts3[2].Trim('"'));
                     else
-                    {
-                        if (int.TryParse(fields[2], out int age))
-                        {
-                            user.Age = age;
-                        }
-                        else
-                        {
-                            user.Age = 20; // Default to 20 if parsing fails
-                        }
-                    }
-                    users.Add(user);
+                        user.Age = -1;
+
+                    bookDetails.Users.Add(user);
+
+
+
+
+
+
+
+
                 }
             }
-            return users;
         }
 
-        private List<BookUserRating> LoadBookUserRatings()
+        public void LoadRatings()
         {
-            var ratings = new List<BookUserRating>();
-            using (var reader = new StreamReader(BookRatingsFilePath))
+            StreamReader ratingReader = new StreamReader(BookRatingsFilePath);
+            ratingReader.ReadLine();
+
+            using (ratingReader)
             {
-                string headerLine = reader.ReadLine(); // Skip header
-                string line;
-                while ((line = reader.ReadLine()) != null)
+                while (!ratingReader.EndOfStream)
                 {
-                    var fields = line.Split(';');
-                    var rating = new BookUserRating
-                    {
-                        UserID = int.Parse(fields[0]),
-                        ISBN = fields[1],
-                        Rating = int.Parse(fields[2])
-                    };
-                    ratings.Add(rating);
+                    string[] str = ratingReader.ReadLine().Split(';');
+                    int uid = int.Parse(str[0].Trim('"'));
+                    str[1] = str[1].Trim('"');
+
+                    int rating = int.Parse(str[2].Trim('"'));
+
+                    bookDetails.BookUserRatings.Add(new BookUserRating { UserID = uid, ISBN = str[1], Rating = rating });
+
+
                 }
+
             }
-            return ratings;
         }
+
+
+
 
 
 

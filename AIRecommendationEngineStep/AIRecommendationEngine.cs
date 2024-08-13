@@ -5,49 +5,81 @@ namespace AIRecommendationEngineStep
 {
     public class AIRecommendationEngine
     {
-        private readonly IRatingsAggregator _ratingsAggregator;
-        private readonly IRecommender _recommender;
-        private readonly BookDetails _bookDetails;
-
-        public AIRecommendationEngine(IRatingsAggregator ratingsAggregator, IRecommender recommender, BookDetails bookDetails)
-        {
-            _ratingsAggregator = ratingsAggregator;
-            _recommender = recommender;
-            _bookDetails = bookDetails;
-        }
+        
 
 
 
         public IList<Book> Recommend(Preference preference, int limit)
         {
-            var aggregatedRatings = _ratingsAggregator.Aggregate(_bookDetails, preference);
+           List<Book>  books = new List<Book>();
 
-            if (!aggregatedRatings.ContainsKey(preference.ISBN))
+            BookDetails details=new CSVDataLoader().Load();
+
+            Dictionary<string, List<int>> aggregrate = new RatingsAggregator().Aggregate(details,preference);
+
+            foreach (var book in details.BookUserRatings)
             {
-                return new List<Book>();
-            }
-
-            var baseRatings = aggregatedRatings[preference.ISBN].ToArray();
-
-            var correlations = new Dictionary<string, double>();
-
-            foreach (var book in _bookDetails.Books)
-            {
-                if (book.ISBN == preference.ISBN) continue;
-
-                if (aggregatedRatings.TryGetValue(book.ISBN, out var ratings))
+                if (book.ISBN == preference.ISBN)
                 {
-                    var correlation = _recommender.GetCorrelation(baseRatings, ratings.ToArray());
-                    correlations[book.ISBN] = correlation;
+                    if (aggregrate.ContainsKey(preference.ISBN))
+                    {
+                        aggregrate[preference.ISBN].Add(book.Rating);
+                    }
+                }
+                else
+                {
+                    aggregrate.Add(preference.ISBN, new List<int>());
+                    aggregrate[preference.ISBN].Add((int)book.Rating); //The rating is an int
                 }
             }
 
-            var recommendedBooks = correlations.OrderByDescending(c => c.Value)
-                                               .Take(limit)
-                                               .Select(c => _bookDetails.Books.First(b => b.ISBN == c.Key))
-                                               .ToList();
 
-            return recommendedBooks;
+            Dictionary<string, List<int>> baseData=new Dictionary<string, List<int>>();
+            Dictionary<string, List<int>> otherData=new Dictionary<string, List<int>>();
+            IRecommender recommender = new PearsonRecommender();
+
+            foreach (var item in aggregrate.Keys)
+            {
+                if (item == preference.ISBN)
+                {
+                    baseData[item] = aggregrate[item];
+                }
+                else 
+                {
+                    otherData[item] = aggregrate[item];
+                }
+            }
+
+            // Getting the pearson result
+            Dictionary<string, double> pearsonResult = new Dictionary<string, double>();
+            if (aggregrate.ContainsKey(preference.ISBN))
+            {
+                foreach (var item in otherData)
+                {
+                    double val = recommender.GetCorrelation(aggregrate[preference.ISBN].ToArray(), item.Value.ToArray());
+
+                    pearsonResult[item.Key] = val;
+                }
+            }
+            else { Console.WriteLine("The result not found"); }
+
+
+            List<string> recommendedBooks=pearsonResult.OrderByDescending(x => x.Value).Select(x=>x.Key).ToList();
+
+            foreach (var item in recommendedBooks) 
+            {
+                foreach(var book in details.Books)
+                {
+                    if (book.ISBN == item)
+                    {
+                        books.Add(book);
+                    }
+                }
+            }
+
+
+            return books;
+
         }
     }
 }

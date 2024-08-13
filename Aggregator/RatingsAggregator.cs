@@ -11,28 +11,80 @@ namespace Aggregator
     {
         public Dictionary<string, List<int>> Aggregate(BookDetails bookDetails, Preference preference)
         {
-            var filteredRatings = bookDetails.BookUserRatings
-              .Where(r => IsInAgeGroup(bookDetails.Users.FirstOrDefault(u => u.UserId == r.UserID)?.Age ?? 0, preference.Age))
-              .GroupBy(r => r.ISBN)
-              .ToDictionary(g => g.Key, g => g.Select(r => r.Rating).ToList());
+            Dictionary<string, List<int>> dictionary = new Dictionary<string, List<int>>();
+            HashSet<int> userId = new HashSet<int>();
+            //Creates a set of unique users of preferred state and age group
 
-            return filteredRatings;
-        }
-
-
-
-        private bool IsInAgeGroup(int userAge, int preferenceAge)
-        {
-            return preferenceAge switch
+            foreach (User user in bookDetails.Users)
             {
-                int age when age >= 1 && age <= 16 => userAge >= 1 && userAge <= 16,
-                int age when age >= 17 && age <= 30 => userAge >= 17 && userAge <= 30,
-                int age when age >= 31 && age <= 50 => userAge >= 31 && userAge <= 50,
-                int age when age >= 51 && age <= 60 => userAge >= 51 && userAge <= 60,
-                int age when age >= 61 && age <= 100 => userAge >= 61 && userAge <= 100,
-                _ => false,
-            };
+                int[] age = AgeGroup(preference.Age);
+                int minAge = age[0];
+                int maxAge = age[1];
+
+                if (user.State == preference.State && user.Age >= minAge && user.Age <= maxAge)
+                {
+                    userId.Add(user.UserId);
+                }
+            }
+
+
+
+            //we return ISBN and the list of ratings
+            foreach(var rating in bookDetails.BookUserRatings)
+            {
+                if (userId.Contains(rating.UserID)){
+                    if (dictionary.ContainsKey(rating.ISBN))
+                    {
+                        dictionary[rating.ISBN].Add(rating.Rating);
+                    }
+                    else
+                    {
+                        dictionary.Add(rating.ISBN, new List<int> { rating.Rating });
+                    }
+                }
+            }
+
+
+            return dictionary;
+
         }
+
+
+        static int[] AgeGroup(int age)
+        {
+            int[] ageLimit = new int[2];
+            if (age >= 1 && age <= 16)
+            {
+                ageLimit[0] = 1;
+                ageLimit[1] = 16;
+            }
+            else if (age >= 17 && age <= 30)
+            {
+                ageLimit[0] = 17;
+                ageLimit[1] = 30;
+            }
+            else if (age >= 31 && age <= 50)
+            {
+                ageLimit[0] = 31;
+                ageLimit[1] = 50;
+            }
+            else if (age >= 51 && age <= 60)
+            {
+                ageLimit[0] = 51;
+                ageLimit[1] = 60;
+            }
+            else if (age >= 61 && age <= 100)
+    {
+                ageLimit[0] = 61;
+                ageLimit[1] = 100;
+            }
+            return ageLimit;
+        }
+
+
+
+
+
     }
 
 
